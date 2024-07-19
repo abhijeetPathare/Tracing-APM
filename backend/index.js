@@ -1,38 +1,73 @@
-// using nodemon so that you do not need to type node index.js every time new code saved
+// APM setup should be the very first import
+import apm from "./aapm.js";
 
-// import express - is for building the Rest apis
+// Using nodemon so that you do not need to type node index.js every time new code is saved
+
+// Import express - is for building the Rest APIs
 import express from "express";
 
-// import body-parser - helps to parse the request and create the req.body object
+// Import body-parser - helps to parse the request and create the req.body object
 import bodyParser from "body-parser";
 
-// import cors - provides Express middleware to enable CORS with various options, connect frontend
+// Import cors - provides Express middleware to enable CORS with various options, connect frontend
 import cors from "cors";
 
-// import routes
+// Import routes
 import router from "./routes/routes.js";
 
-// init express
+// Import winston logger
+import logger from "./logger.js";
+
+// Init express
 const app = express();
 
-// use express json
+// APM error handling
+process.on('unhandledRejection', (reason, promise) => {
+    apm.captureError(reason);
+    logger.error(`Unhandled Rejection at: ${promise}, reason: ${reason}`);
+});
+
+process.on('uncaughtException', (error) => {
+    apm.captureError(error);
+    logger.error(`Uncaught Exception: ${error.message}`, { stack: error.stack });
+});
+
+// Use express json
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-//use cors
+// Use cors
 app.use(cors());
 
-// use router
+// Log all requests
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`);
+  next();
+});
+
+// Use router
 app.use(router);
 
-// // Handle production
-// if (process.env.NODE_ENV === 'production'){
-//   // Static folder
-//   app.use(express.static(__dirname + '/public/'));
+// Test route to generate an error for APM
+app.get('/error', function(req, res) {
+    throw new Error('Test error!');
+});
 
-//   // Handle SPA
-//   app.get(/.*/, (req,res)=> res.sendFile(__dirname + '/public/index.html'));
-// }
+// Test route to capture a transaction
+app.get('/test-transaction', function (req, res) {
+    const transaction = apm.startTransaction('test-transaction', 'custom');
+    setTimeout(() => {
+        transaction.end();
+        res.send('Transaction captured!');
+    }, 1000);
+});
+
+// Add at the end of all routes
+app.use((err, req, res, next) => {
+    apm.captureError(err);
+    logger.error(`Error: ${err.message}`, { stack: err.stack });
+    res.status(500).send('Something broke!');
+});
 
 app.get('/', function(req, res){
     res.json({ message: 'Welcome to restaurant api' });
@@ -41,14 +76,5 @@ app.get('/', function(req, res){
 // PORT
 const PORT = process.env.PORT || 8081;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}.`);
+    logger.info(`Server is running on port ${PORT}.`);
 });
-
-// https://www.youtube.com/watch?v=GK2TiAAxmQ0
-// https://www.bezkoder.com/node-js-rest-api-express-mysql/
-// https://www.bezkoder.com/serve-vue-app-express/
-// https://www.bezkoder.com/deploy-node-js-app-heroku-cleardb-mysql/
-// https://www.youtube.com/watch?v=W-b9KGwVECs
-// https://stackoverflow.com/questions/43362014/heroku-no-default-language-could-be-detected-for-this-app-error-thrown-for-no
-// https://stackoverflow.com/questions/16128395/what-is-procfile-and-web-and-worker
-// https://www.youtube.com/watch?v=lwOsI8LtVEQ

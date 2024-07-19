@@ -26,13 +26,21 @@ export const getAItem = (user,food,result) => {
 };
 
 // insert new item to cart
-export const insertToCart = (data,result) => {
-    db.query("INSERT INTO cart SET ?",data, (err,results)=> {
-        if (err){
+export const insertToCart = (data, result) => {
+    db.query("INSERT INTO cart SET ?", data, (err, insertResult) => {
+        if (err) {
             console.log(err);
-            result(err,null);
-        }else{
-            result(null,results[0]);
+            result(err, null);
+        } else {
+            // Fetch the inserted item from the database
+            db.query("SELECT * FROM cart WHERE cart_id = ?", insertResult.insertId, (err, fetchResult) => {
+                if (err) {
+                    console.log(err);
+                    result(err, null);
+                } else {
+                    result(null, fetchResult[0]); // Return the fetched item
+                }
+            });
         }
     });
 };
